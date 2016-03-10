@@ -14,6 +14,10 @@
 %
 %   open_project --list
 %
+% To move your MATLAB user directory (~/Documents/MATLAB on linux) use:
+%   
+%   oen_project mlhome
+%
 
 function open_project(project_name)
     
@@ -26,6 +30,14 @@ function open_project(project_name)
        list_projects(project_folders);
        return
     end
+    
+    if strcmp(project_name, 'mlhome')
+        fprintf('Changing directory to %s\n', userpath);
+        % We need to strip the trainling ':' from the userpath
+        user_path = userpath();
+        cd(user_path(1:end-1));
+        return
+    end           
 
     for k = 1:length(project_folders)
         path = fullfile(project_folders{k}, project_name);
