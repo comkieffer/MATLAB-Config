@@ -1,4 +1,13 @@
 
+% Start by detecting the presence or absence of a global startup file: 
+root_startup = userpath();
+root_startup = fullfile(root_startup(1:end-1), 'startup.m');
+
+if exist(root_startup, 'file') == 2
+    fprintf('Running root startup file: %s\n', root_startup);
+    run(root_startup);
+end
+clear root_startup;
 
 MATLAB_EXTENSIONS = {'.m', '.p' '.slx'};
 
