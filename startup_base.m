@@ -1,72 +1,121 @@
 
-% Start by detecting the presence or absence of a global startup file: 
-root_startup = userpath();
-root_startup = fullfile(root_startup(1:end-1), 'startup.m');
 
-if exist(root_startup, 'file') == 2
-    fprintf('Running root startup file: %s\n', root_startup);
-    run(root_startup);
-end
-clear root_startup;
+function startup() 
+    % Start by detecting the presence or absence of a global startup file. If the file exists we run
+    % it before doing anything else.
+    root_startup = userpath();
+    root_startup = fullfile(root_startup(1:end-1), 'startup.m');
 
-MATLAB_EXTENSIONS = {'.m', '.p' '.slx'};
-
-base_dir = pwd();
-paths = genpath('.');
-
-folders = strsplit(paths, pathsep);
-
-new_paths = '';
-for k = 1:length(folders)
-    folder = folders{k};
-    folder = folder(2:end); % Strip out the initial '.' character
-    
-    % Exclude '.' and '..' from the listing.
-    if isempty(folder) || strcmp(folder, '.')
-        continue
+    if exist(root_startup, 'file') == 2
+        fprintf('Running root startup file: <strong>%s</strong>\n', root_startup);
+        run(root_startup);
     end
-    
-    % Exclude folders that do not contain *.m files
-    files = dir(strcat(base_dir, folder));
-    
-    m_files = cell(0);
-    for l = 1:length(files)
-        [~, name, ext] = fileparts(files(l).name);
-        if find(strcmp(ext, MATLAB_EXTENSIONS))
-            m_files{end+1} = name;
+
+    % Now we can start loading the subdirectories in the current folder. 
+
+    MATLAB_EXTENSIONS = {'.m', '.p' '.mlx'};
+    SIMULINK_EXTENSIONS = {'.slx'};
+
+
+    fprintf('Scanning local directories ... \n\n');
+    base_dir = pwd();
+    paths = genpath('.');
+
+    folders = strsplit(paths, pathsep);
+
+    new_paths = '';
+    for k = 1:length(folders)
+        folder = folders{k};
+        folder = folder(2:end); % Strip out the initial '.' character
+        
+        % Exclude '.' and '..' from the listing.
+        if isempty(folder) || strcmp(folder, '.')
+            continue
         end
-    end
-    
-    % If the folder has at least one *.m file we add it to the path and print a
-    % message to the screen.
-    if ~isempty(m_files)
-        abs_path = strcat(base_dir, folder);
-        new_paths = strcat(new_paths, abs_path, ';');
+        
+        % We want to exclude folders that do not contain MATLAB or SIMULINK files.
 
-        % Truncate paths that are longer than MAX_PATH_LEN
-        MAX_PATH_LEN = 80;
-        if length(abs_path) > MAX_PATH_LEN 
-            [path, file, ext] = fileparts(abs_path);
+        files = dir(strcat(base_dir, folder));
+       
+        matlab_files = cell(0);
+        simulink_files = cell(0);
+        for l = 1:length(files)
+            [~, name, ext] = fileparts(files(l).name);
 
-            remaining_chars = MAX_PATH_LEN - 1 - length(file) - length(ext);
-
-            if length(path) > remaining_chars
-                path = strcat(path(1:remaining_chars-3), '...');
+            if find(strcmp(ext, MATLAB_EXTENSIONS))
+                matlab_files{end+1} = name;
+            elseif find(strcmp(ext, MATLAB_EXTENSIONS))
+                simulink_files{end+1} = name;
             end
+        end
+        
+        % If the folder has at least one MATLAB or SIMULINK file we add it to the path and print a
+        % message to the screen.
+        abs_path = fullfile(base_dir, folder);
+        
+        if ~isempty(matlab_files) || ~isempty(simulink_files)
+            new_paths = strcat(new_paths, abs_path, ';');
+            fprintf('<strong>%s</strong> provides: \n', shorten_path(abs_path));    
+        end
 
-            abs_path = strcat(path, '/', file, ext'); 
+        if ~isempty(matlab_files)
+            matlab_files = join_cells(matlab_files, ', ');
+            fprintf('  Scripts:\n');
+            fprintf('%s\b\b\b\n', wrap_string(matlab_files, '  |  '));
         end
-        
-        fprintf('Adding %s \n', abs_path);
-        
-        for l = 1:length(m_files)
-            fprintf('  Provides: %s\n', m_files{l});
+
+        if ~isempty(simulink_files)
+            simulink_files = join_cells(simulink_files);
+            fprintf('  Simulink Models:\n');
+            fprintf('%s\b\b\b\n, ', wrap_string(simulink_files, '  |  '));
         end
+    end
+
+    % Actually add all the folders to the path
+    addpath(new_paths);
+end
+
+function short_path = shorten_path(abs_path, max_path_len)
+    if ~exist('max_path_len', 'var') max_path_len = 80; end
+
+    if length(abs_path) > max_path_len 
+        [path, file, ext] = fileparts(abs_path);
+
+        remaining_chars = max_path_len - 1 - length(file) - length(ext);
+
+        if length(path) > remaining_chars
+            path = strcat(path(1:remaining_chars-3), '...');
+        end
+
+        short_path = strcat(path, '/', file, ext'); 
+    else 
+        short_path = abs_path;
     end
 end
 
-% Actually add all the folders to the path
-addpath(new_paths);
+function joined_str = join_cells(str, joiner)
+    joined_str = ...
+        cell2mat(cellfun(@(x) [x joiner], str, 'UniformOutput', false));
+end
 
-% Clean up
-clear all
+function wrapped_str = wrap_string(str, indent)
+    if ~exist('indent', 'var'); indent = ''; end
+            
+    items = strsplit(str);
+    win_size = matlab.desktop.commandwindow.size;
+    width = win_size(1);
+    
+    lines = {};
+    this_line = indent;
+    for k = 1:length(items)
+        if length(this_line) + length(items{k}) + 1 < width
+            this_line = [this_line ' ' items{k}];
+        else
+            lines{end+1} = this_line;
+            this_line = [indent items{k}];
+        end
+    end
+    lines{end+1} = this_line;
+    
+    wrapped_str = sprintf(join_cells(lines, '\n'));
+end
