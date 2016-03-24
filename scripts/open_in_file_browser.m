@@ -6,10 +6,19 @@
 % implemented a basic version here. All modern linux distributions should
 % support `xdg-open`
 %
+% To open the MATLAB userpath directory (Documents/MATLAB) run:
+%
+%   >> open_in_file_browser userpath
+%
 
 function open_in_file_browser(path)
     if ~exist('path', 'var'); path = '.'; end
 
+    if strcmp(path, 'userpath')
+        upath = userpath();
+        path = upath(1:end-1);
+    end    
+    
     if ~exist(path, 'dir')
         warning('%s is not a folder', path)
         return
